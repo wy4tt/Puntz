@@ -1,0 +1,1724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puntz · NFL Tracker</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #14171c; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #d50a0a; --live: #16a34a; --chip: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e1116; --card: #171b22; --text: #e8eaed; --muted: #8b93a1;
+            --line: #262c36; --accent: #ff4d4d; --live: #22c55e; --chip: #20262f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  [hidden] { display: none !important; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg);
+           border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display: flex;
+         align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bar + .bar { padding-top: 0; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  .spacer { flex: 1; }
+  .updated { color: var(--muted); font-size: 12px; }
+  button, select { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card);
+           color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 13px; }
+  select { padding-right: 8px; max-width: 100%; }
+  button:hover, select:hover { border-color: var(--muted); }
+  button:disabled { opacity: .4; cursor: default; }
+  .seg { display: flex; gap: 6px; }
+  .seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .picker { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .picker select { min-width: 0; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+          padding: 14px; cursor: pointer; transition: border-color .15s; }
+  .card:hover { border-color: var(--muted); }
+  .card.live { border-left: 4px solid var(--live); }
+  .status { display: flex; justify-content: space-between; align-items: center;
+            font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .status .state { font-weight: 600; color: var(--text); }
+  .live .status .state { color: var(--live); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--live);
+         margin-right: 6px; animation: pulse 1.4s infinite; vertical-align: 1px; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .team { display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 10px; padding: 4px 0; }
+  .logo { width: 32px; height: 32px; object-fit: contain; }
+  .logo.blank { display: inline-block; border-radius: 50%; background: var(--chip); }
+  .name { font-weight: 600; }
+  .rec { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 6px; }
+  .poss { color: var(--accent); font-size: 11px; margin-left: 4px; }
+  .score { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .loser .name, .loser .score { color: var(--muted); font-weight: 500; }
+  .meta { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);
+          font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { background: var(--chip); border-radius: 6px; padding: 2px 7px; }
+  .chip.rz { background: var(--accent); color: #fff; }
+  .field { margin-top: 10px; }
+  .fwrap { position: relative; border-radius: 8px; overflow: hidden; }
+  .fwrap svg { display: block; width: 100%; height: auto; }
+  .fwrap .num { fill: #fff; fill-opacity: .7; font: 700 34px system-ui, sans-serif; text-anchor: middle; }
+  .fwrap [class^="ez-"][class$="-t"] { fill: #fff; font: 800 44px system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; letter-spacing: 4px; }
+  .fwrap .los, .fwrap .ltg { transition: opacity .3s; }
+  .banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none;
+            padding: 4px 14px; border-radius: 8px; color: #fff; font-weight: 800; font-size: clamp(14px, 3.5vw, 22px);
+            letter-spacing: .04em; white-space: nowrap; box-shadow: 0 4px 16px rgb(0 0 0 / .35); }
+  .fcap { margin-top: 6px; font-size: 13px; min-height: 2.8em; color: var(--muted); }
+  .flabel { font-weight: 800; font-size: 12px; letter-spacing: .05em; color: var(--text); }
+  .flabel.good { color: var(--live); }
+  .flabel.bad { color: var(--accent); }
+  .flabel.flag { color: #ca8a04; }
+  .fwrap canvas { display: block; width: 100%; }
+  .fmode { justify-content: center; margin-top: 8px; }
+  .fmode button { padding: 3px 10px; font-size: 12px; }
+  .details { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; }
+  .card.open .details { display: block; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-bottom: 10px; }
+  th, td { padding: 3px 4px; text-align: center; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; }
+  td:first-child, th:first-child { text-align: left; }
+  td:last-child { font-weight: 700; }
+  .leader { display: flex; gap: 8px; padding: 3px 0; }
+  .leader b { width: 42px; color: var(--muted); font-weight: 500; font-size: 11px; padding-top: 2px; }
+  .empty, .error { text-align: center; color: var(--muted); padding: 48px 0; }
+  .error { color: var(--accent); }
+  .byes { margin-top: 20px; color: var(--muted); font-size: 13px; }
+  a { color: inherit; }
+
+  /* Schedule view */
+  .wk { background: var(--card); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+  .wk.current { border-color: var(--accent); }
+  .wk h2 { margin: 0; padding: 10px 14px; font-size: 14px; display: flex; gap: 8px; align-items: baseline;
+           border-bottom: 1px solid var(--line); scroll-margin-top: 120px; }
+  .wk h2 span { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .wk h2 .chip { color: #fff; background: var(--accent); font-weight: 600; }
+  .row { display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; align-items: center;
+         padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row:hover { background: var(--chip); }
+  .when { color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .when b { color: var(--text); font-weight: 600; }
+  .match { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+  .side { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+  .side .logo { width: 20px; height: 20px; }
+  .side.loser { color: var(--muted); font-weight: 500; }
+  .at { color: var(--muted); font-size: 11px; }
+  .extra { font-size: 12px; color: var(--muted); text-align: right; }
+  .res { font-weight: 700; border-radius: 6px; padding: 2px 7px; }
+  .res.W { background: var(--live); color: #fff; }
+  .res.L { background: var(--chip); color: var(--text); }
+  .res.T { background: var(--chip); color: var(--muted); }
+  .row.bye { cursor: default; color: var(--muted); }
+  .row.bye:hover { background: none; }
+
+  /* Play-by-play panel */
+  .pbp-btn { margin-top: 10px; width: 100%; border-radius: 10px; font-weight: 600; }
+  .live .pbp-btn { background: var(--live); border-color: var(--live); color: #fff; }
+  .overlay { position: fixed; inset: 0; z-index: 10; background: rgb(0 0 0 / .45); display: flex; justify-content: flex-end; }
+  .panel { width: min(600px, 100%); height: 100%; background: var(--bg); display: flex; flex-direction: column;
+           border-left: 1px solid var(--line); box-shadow: -8px 0 32px rgb(0 0 0 / .25); }
+  .phead { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+  .ptop { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+  .ptop .state { font-weight: 600; color: var(--text); }
+  .ptop .state.live { color: var(--live); }
+  .close { border-radius: 50%; width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; }
+  .pscore { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin: 8px 0 4px; }
+  .pscore .t { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .pscore .t.home { justify-content: flex-end; }
+  .pscore .t .logo { width: 36px; height: 36px; }
+  .pscore .s { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pscore .dash { color: var(--muted); }
+  .pscore .mid { display: flex; align-items: center; gap: 10px; }
+  .situ { text-align: center; font-size: 12px; color: var(--muted); }
+  .wp { margin-top: 8px; font-size: 11px; color: var(--muted); }
+  .wp .bar2 { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; margin-top: 4px; }
+  .wp .bar2 div { height: 100%; background: var(--text); }
+  .wp .lbl { display: flex; justify-content: space-between; }
+  .ptabs { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--line); align-items: center; }
+  .pbody { flex: 1; overflow-y: auto; padding: 12px 16px 32px; overscroll-behavior: contain; }
+  .drive { background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+  .drive.current { border-color: var(--live); }
+  .dhead { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; }
+  .dhead .logo { width: 28px; height: 28px; }
+  .dres { font-weight: 600; font-size: 14px; }
+  .dres.score { color: var(--live); }
+  .ddesc { font-size: 12px; color: var(--muted); }
+  .dright { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .plays { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); display: none; }
+  .drive.open .plays { display: block; }
+  .play { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 9px 12px; font-size: 13px; }
+  .play + .play { border-top: 1px solid var(--line); }
+  .play.minor { color: var(--muted); font-size: 12px; padding: 6px 12px; }
+  .play.scoring { background: color-mix(in srgb, var(--live) 12%, transparent); }
+  .play.new { animation: flash 2.5s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
+  .pclock { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+  .pdd { font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 2px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tag { border-radius: 4px; padding: 0 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+  .tag.td { background: var(--live); color: #fff; }
+  .tag.to { background: var(--accent); color: #fff; }
+  .tag.pen { background: #eab308; color: #000; }
+  .sp { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 10px 12px; font-size: 13px; align-items: start; }
+  .sp + .sp { border-top: 1px solid var(--line); }
+  .sp .logo { width: 28px; height: 28px; }
+  .qhead { font-size: 12px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
+  .qhead:first-child { margin-top: 0; }
+
+  @media (max-width: 480px) {
+    .grid { grid-template-columns: 1fr; }
+    .updated { width: 100%; }
+    .row { grid-template-columns: 64px 1fr auto; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Puntz<span>.</span></h1>
+    <div class="seg" id="views">
+      <button data-v="scores" aria-pressed="true">Scores</button>
+      <button data-v="schedule">Schedule</button>
+    </div>
+    <div class="spacer"></div>
+    <button id="refresh" title="Refresh now">↻</button>
+    <div class="updated" id="updated"></div>
+  </div>
+  <div class="bar">
+    <div class="picker" id="picker">
+      <button id="prev" title="Previous week" disabled>‹</button>
+      <select id="week" aria-label="Week"></select>
+      <button id="next" title="Next week" disabled>›</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="seg" id="filters">
+      <button data-f="all" aria-pressed="true">All</button>
+      <button data-f="in">Live</button>
+      <button data-f="pre">Upcoming</button>
+      <button data-f="post">Final</button>
+    </div>
+    <select id="team" aria-label="Team" hidden><option value="">All teams</option></select>
+  </div>
+</header>
+<main>
+  <div id="games"></div>
+  <div class="byes" id="byes"></div>
+</main>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="Play-by-play">
+    <div class="phead" id="phead"></div>
+    <div class="ptabs" id="ptabs">
+      <div class="seg">
+        <button data-t="plays" aria-pressed="true">All plays</button>
+        <button data-t="scoring">Scoring</button>
+      </div>
+      <div class="spacer"></div>
+      <button id="expand">Expand all</button>
+    </div>
+    <div class="pbody" id="pbody"></div>
+  </div>
+</div>
+
+<script>
+const API = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard";
+const LIVE_MS = 15_000, IDLE_MS = 120_000;
+const STATE_ORDER = { in: 0, pre: 1, post: 2 };
+
+let view = "scores";
+let filter = "all";
+let events = [];
+let weeks = [];        // flattened calendar: [{ key, type, week, label, detail, season }]
+let currentKey = null; // the week ESPN considers "now", e.g. "2-5"
+let selectedKey = null;
+let schedule = null;   // [{ ...week, events }]
+let team = "";
+let timer, reqId = 0;
+const openCards = new Set();
+let scrollToCard = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const keyOf = (type, week) => `${type}-${week}`;
+const weekUrl = (key) => { const [t, w] = key.split("-"); return `${API}?seasontype=${t}&week=${w}`; };
+const logo = (team, cls = "logo") => team?.logo
+  ? `<img class="${cls}" src="${esc(team.logo)}" alt="" loading="lazy">`
+  : `<span class="${cls} blank"></span>`;
+
+async function getJSON(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function stamp(text) {
+  $("updated").textContent = text ?? "Updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+
+// Calendar + current week come with every scoreboard response; grab them once.
+function initCalendar(data) {
+  if (weeks.length) return;
+  weeks = (data.leagues?.[0]?.calendar ?? [])
+    .filter((s) => s.entries?.length)
+    .flatMap((s) => s.entries.map((en) => ({
+      key: keyOf(s.value, en.value), type: s.value, week: en.value,
+      label: en.label, detail: en.detail, season: s.label,
+    })));
+  currentKey = keyOf(data.season?.type, data.week?.number);
+  selectedKey ??= currentKey;
+  $("week").innerHTML = [...new Set(weeks.map((w) => w.season))].map((season) =>
+    `<optgroup label="${esc(season)}">${weeks.filter((w) => w.season === season).map((w) =>
+      `<option value="${w.key}">${esc(w.label)}${w.key === currentKey ? " (now)" : ""} · ${esc(w.detail)}</option>`).join("")}</optgroup>`
+  ).join("");
+}
+
+function syncPicker() {
+  $("week").value = selectedKey;
+  const i = weeks.findIndex((w) => w.key === selectedKey);
+  $("prev").disabled = i <= 0;
+  $("next").disabled = i === -1 || i >= weeks.length - 1;
+}
+
+/* ---------- Live field ---------- */
+
+// ESPN yard lines are absolute: 0 = home team's goal line, 100 = away team's. The home team attacks toward 100.
+const REDUCE_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FW = 1200, FH = 360, MID = FH / 2;
+const fx = (yl) => 100 + Math.max(-9, Math.min(109, yl)) * 10;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function fieldSvg() {
+  let s = `<rect width="${FW}" height="${FH}" fill="#2e7d32"/>`;
+  for (let i = 0; i < 10; i++) s += `<rect x="${100 + i * 100}" width="100" height="${FH}" fill="${i % 2 ? "#2b7330" : "#338a38"}"/>`;
+  s += `<rect class="ez-home" width="100" height="${FH}"/><rect class="ez-away" x="1100" width="100" height="${FH}"/>`;
+  s += `<text class="ez-home-t" transform="translate(50 ${MID}) rotate(-90)"/><text class="ez-away-t" transform="translate(1150 ${MID}) rotate(90)"/>`;
+  for (let yl = 0; yl <= 100; yl += 5) {
+    const goal = yl === 0 || yl === 100;
+    s += `<line x1="${fx(yl)}" x2="${fx(yl)}" y2="${FH}" stroke="#fff" stroke-opacity="${goal ? 1 : yl % 10 ? 0.3 : 0.65}" stroke-width="${goal ? 5 : 2}"/>`;
+  }
+  for (let yl = 10; yl <= 90; yl += 10) {
+    const n = yl <= 50 ? yl : 100 - yl;
+    s += `<text class="num" x="${fx(yl)}" y="58">${n}</text><text class="num" x="${fx(yl)}" y="${FH - 30}">${n}</text>`;
+  }
+  s += `<line x1="8" x2="8" y1="${MID - 55}" y2="${MID + 55}" stroke="#facc15" stroke-width="8"/>
+        <line x1="1192" x2="1192" y1="${MID - 55}" y2="${MID + 55}" stroke="#facc15" stroke-width="8"/>
+        <line class="ltg" y2="${FH}" stroke="#facc15" stroke-width="5"/>
+        <line class="los" y2="${FH}" stroke="#3b82f6" stroke-width="5"/>
+        <g class="fx"></g>
+        <ellipse class="shadow" rx="24" ry="8" fill="#000" fill-opacity=".35"/>
+        <g class="ball">
+          <ellipse rx="27" ry="16" fill="#8b4a1c" stroke="#4a250c" stroke-width="3"/>
+          <line x1="-11" x2="11" stroke="#fff" stroke-width="3"/>
+          <line x1="-6" x2="-6" y1="-5" y2="5" stroke="#fff" stroke-width="2.5"/>
+          <line x1="0" x2="0" y1="-5" y2="5" stroke="#fff" stroke-width="2.5"/>
+          <line x1="6" x2="6" y1="-5" y2="5" stroke="#fff" stroke-width="2.5"/>
+        </g>`;
+  return `<svg viewBox="0 0 ${FW} ${FH}" aria-hidden="true">${s}</svg>`;
+}
+
+// Normalize plays/situations from the scoreboard and summary endpoints into one shape.
+const KICK_RE = /kickoff|punt/i;
+function playFromSituation(lp) {
+  const startTeam = lp.start?.team?.id, endTeam = lp.end?.team?.id, type = lp.type?.text ?? "";
+  return {
+    id: lp.id, type, text: (lp.text ?? "").trim(), yards: lp.statYardage ?? 0,
+    startYL: lp.start?.yardLine, endYL: lp.end?.yardLine, startTeam,
+    scoring: lp.scoreValue > 0,
+    turnover: /interception|fumble recovery \(opponent\)|turnover on downs/i.test(type)
+      || (!!startTeam && !!endTeam && startTeam !== endTeam && !KICK_RE.test(type) && !/field goal/i.test(type)),
+  };
+}
+const playFromSummary = (p) => ({
+  id: p.id, type: p.type?.text ?? "", text: (p.text ?? "").trim(), yards: p.statYardage ?? 0,
+  startYL: p.start?.yardLine, endYL: p.end?.yardLine, startTeam: p.start?.team?.id,
+  scoring: !!p.scoringPlay, turnover: !!p.isTurnover,
+});
+const stateFromSituation = (s) => ({ yardLine: s.yardLine, down: s.down, distance: s.distance, team: s.possession, goal: /goal/i.test(s.downDistanceText ?? "") });
+const stateFromPlayEnd = (p) => ({ yardLine: p.end?.yardLine, down: p.end?.down, distance: p.end?.distance, team: p.end?.team?.id, goal: /goal/i.test(p.end?.downDistanceText ?? "") });
+
+/* Shared plumbing for both field views: play queue, caption and result banner. */
+class PlayView {
+  constructor(stageHtml) {
+    this.root = document.createElement("div");
+    this.root.className = "field";
+    this.root.innerHTML = `<div class="fwrap">${stageHtml}<div class="banner"></div></div>
+      <div class="fcap"><span class="flabel"></span> <span class="ftext"></span></div>`;
+    this.banner = this.root.querySelector(".banner");
+    this.label = this.root.querySelector(".flabel");
+    this.text = this.root.querySelector(".ftext");
+    this.queue = [];
+    this.busy = false;
+    this.lastId = null;
+  }
+
+  // Returns true when the matchup changed.
+  setTeams(home, away) {
+    if (this.homeId === home.id) return false;
+    this.homeId = home.id;
+    this.teams = { [home.id]: { ...home, home: true }, [away.id]: { ...away, home: false } };
+    this.colors = { [home.id]: `#${home.color || "555"}`, [away.id]: `#${away.color || "555"}` };
+    return true;
+  }
+
+  dir(teamId) { return teamId === this.homeId ? 1 : -1; }
+
+  caption(label, text, tone = "") {
+    this.label.textContent = label;
+    this.label.className = `flabel ${tone}`;
+    this.text.textContent = text;
+  }
+
+  enqueue(play, after) {
+    this.queue.push([play, after]);
+    if (this.queue.length > 3) this.queue.splice(0, this.queue.length - 3); // don't fall far behind
+    if (!this.busy) this.drain();
+  }
+
+  async drain() {
+    this.busy = true;
+    while (this.queue.length) {
+      const [play, after] = this.queue.shift();
+      try { await this.animatePlay(play, after); } catch { this.place(after); }
+      await sleep(500);
+    }
+    this.busy = false;
+  }
+
+  // Animate element along precomputed keyframes, then bake the final frame into its style.
+  async run(el, frames, duration, easing = "linear") {
+    const a = el.animate(frames, { duration, easing, fill: "forwards" });
+    await a.finished;
+    a.commitStyles();
+    a.cancel();
+  }
+
+  showBanner(text, color) {
+    this.banner.textContent = text;
+    this.banner.style.background = color;
+    return this.run(this.banner, [
+      { opacity: 0, transform: "translate(-50%, -50%) scale(.4)" },
+      { opacity: 1, transform: "translate(-50%, -50%) scale(1.15)", offset: 0.15 },
+      { opacity: 1, transform: "translate(-50%, -50%) scale(1)", offset: 0.25 },
+      { opacity: 1, transform: "translate(-50%, -50%) scale(1)", offset: 0.85 },
+      { opacity: 0, transform: "translate(-50%, -50%) scale(1)" },
+    ], 2600, "ease-out");
+  }
+
+  // Scoreboard feed: animate whenever the situation's last play changes.
+  syncFromScoreboard(e) {
+    const comp = e.competitions[0];
+    const home = comp.competitors.find((c) => c.homeAway === "home").team;
+    const away = comp.competitors.find((c) => c.homeAway === "away").team;
+    this.setTeams(home, away);
+    const sit = comp.situation;
+    if (!sit) return;
+    const after = stateFromSituation(sit);
+    const lp = sit.lastPlay;
+    if (!lp || lp.id === this.lastId) {
+      if (!this.busy) this.place(after);
+      return;
+    }
+    if (this.lastId == null) this.place(after);
+    this.lastId = lp.id;
+    this.enqueue(playFromSituation(lp), after);
+  }
+}
+
+function playLabel(p) {
+  const t = p.type.toLowerCase();
+  const yds = p.yards > 0 ? `+${p.yards} yds` : p.yards < 0 ? `${p.yards} yds` : "no gain";
+  let label = p.type.toUpperCase(), tone = "";
+  if (/sack/.test(t)) label = `SACK ${yds}`, tone = "bad";
+  else if (/incomplet/.test(t)) label = "INCOMPLETE";
+  else if (/interception/.test(t)) label = "INTERCEPTED!", tone = "bad";
+  else if (/pass/.test(t)) label = `PASS ${yds}`;
+  else if (/rush/.test(t)) label = `RUN ${yds}`;
+  else if (/penalty/.test(t)) label = `FLAG ${yds}`, tone = "flag";
+  if (p.scoring) tone = "good";
+  else if (p.turnover) tone = "bad";
+  return [label, tone];
+}
+
+function resultBanner(p, colors) {
+  const t = p.type.toLowerCase();
+  const color = colors?.[p.startTeam] ?? "#16a34a";
+  if (/field goal|extra point/.test(t)) return /miss|block|no good/.test(t) ? { text: "NO GOOD", color: "#6b7280" } : { text: "IT'S GOOD!", color };
+  if (p.scoring) return { text: /safety/.test(t) ? "SAFETY!" : /touchdown/.test(t) ? "TOUCHDOWN!" : "SCORE!", color };
+  if (p.turnover) return { text: /interception/.test(t) ? "INTERCEPTED!" : /fumble/.test(t) ? "FUMBLE!" : "TURNOVER!", color: "#dc2626" };
+  return null;
+}
+
+/* Top-down view: SVG field, ball slides/arcs between yard lines. */
+class Field extends PlayView {
+  constructor() {
+    super(fieldSvg());
+    const q = (sel) => this.root.querySelector(sel);
+    Object.assign(this, { ball: q(".ball"), shadow: q(".shadow"), los: q(".los"), ltg: q(".ltg"), fxLayer: q(".fx") });
+    this.setBall(50);
+  }
+
+  setTeams(home, away) {
+    if (!super.setTeams(home, away)) return;
+    for (const [side, t] of [["home", home], ["away", away]]) {
+      this.root.querySelector(`.ez-${side}`).setAttribute("fill", `#${t.color || "555"}`);
+      this.root.querySelector(`.ez-${side}-t`).textContent = t.abbreviation;
+    }
+  }
+
+  setBall(yl, y = MID, scale = 1) {
+    const x = fx(yl ?? 50);
+    this.ball.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    this.ball.style.opacity = 1;
+    this.shadow.style.transform = `translate(${x}px, ${MID + 16}px)`;
+  }
+
+  setLines(st) {
+    if (st?.yardLine == null) { this.los.style.opacity = this.ltg.style.opacity = 0; return; }
+    const x = fx(st.yardLine);
+    this.los.setAttribute("x1", x); this.los.setAttribute("x2", x);
+    this.los.style.opacity = 1;
+    if (st.down > 0 && st.distance > 0 && st.team) {
+      const target = st.goal ? (this.dir(st.team) > 0 ? 100 : 0) : st.yardLine + this.dir(st.team) * st.distance;
+      const lx = fx(Math.max(0, Math.min(100, target)));
+      this.ltg.setAttribute("x1", lx); this.ltg.setAttribute("x2", lx);
+      this.ltg.style.opacity = 1;
+    } else {
+      this.ltg.style.opacity = 0;
+    }
+  }
+
+  place(st) {
+    if (st?.yardLine != null) this.setBall(st.yardLine);
+    this.setLines(st);
+  }
+
+  // Move the ball from yard line a to b. height > 0 makes it fly in an arc (pass/kick).
+  flight(a, b, { height = 0, duration = 1000, spin = 0, wobble = 0 } = {}) {
+    const n = 30, ball = [], shadow = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, x = fx(a) + (fx(b) - fx(a)) * t;
+      const h = height * 4 * t * (1 - t);
+      const y = MID - h + (wobble ? Math.sin(t * Math.PI * 8) * wobble : 0);
+      const s = 1 + (height ? (h / height) * 0.7 : 0);
+      ball.push({ transform: `translate(${x}px, ${y}px) scale(${s}) rotate(${spin * t}deg)` });
+      shadow.push({ transform: `translate(${x}px, ${MID + 16}px) scale(${1 - (height ? (h / height) * 0.5 : 0)})` });
+    }
+    const easing = height ? "linear" : "cubic-bezier(.3,.6,.4,1)";
+    return Promise.all([this.run(this.ball, ball, duration, easing), this.run(this.shadow, shadow, duration, easing)]);
+  }
+
+  burst(yl, color) {
+    const x = fx(yl);
+    for (let i = 0; i < 14; i++) {
+      const c = document.createElementNS(SVG_NS, "circle");
+      c.setAttribute("r", 7);
+      c.setAttribute("fill", i % 2 ? color : "#fff");
+      this.fxLayer.append(c);
+      const ang = (i / 14) * Math.PI * 2, dist = 70 + Math.random() * 60;
+      c.animate([
+        { transform: `translate(${x}px, ${MID}px)`, opacity: 1 },
+        { transform: `translate(${x + Math.cos(ang) * dist}px, ${MID + Math.sin(ang) * dist}px)`, opacity: 0 },
+      ], { duration: 1100, easing: "cubic-bezier(.2,.7,.3,1)" }).finished.then(() => c.remove());
+    }
+  }
+
+  dropFlag(yl) {
+    const x = fx(yl) + 30;
+    const g = document.createElementNS(SVG_NS, "g");
+    g.innerHTML = `<rect x="-11" y="-11" width="22" height="22" rx="3" fill="#facc15" stroke="#a16207" stroke-width="2"/>`;
+    this.fxLayer.append(g);
+    g.animate([
+      { transform: `translate(${x}px, -30px) rotate(0deg)` },
+      { transform: `translate(${x + 15}px, ${MID - 40}px) rotate(200deg)`, offset: 0.8 },
+      { transform: `translate(${x + 15}px, ${MID - 40}px) rotate(220deg)` },
+    ], { duration: 700, easing: "ease-in", fill: "forwards" });
+    setTimeout(() => g.remove(), 4000);
+  }
+
+  async animatePlay(p, after) {
+    const t = p.type.toLowerCase();
+    const start = p.startYL, end = p.endYL;
+    const dir = this.dir(p.startTeam);
+    const [label, tone] = playLabel(p);
+    this.caption(label, p.text, tone);
+
+    if (start != null) this.setBall(start);
+    if (REDUCE_MOTION || start == null || end == null) { this.place(after); return sleep(1200); }
+
+    const fg = /field goal|extra point/.test(t);
+    if (fg) {
+      const post = dir > 0 ? 109 : -9;
+      const good = !/miss|block|no good/.test(t);
+      await this.flight(start, good ? post : post - dir * 4, { height: 150, duration: 1500, spin: 360 });
+    } else if (KICK_RE.test(t)) {
+      await this.flight(start, end, { height: 170, duration: 1800, spin: 720 });
+    } else if (/incomplet/.test(t)) {
+      const target = start + dir * (/deep/.test(p.text.toLowerCase()) ? 22 : 10);
+      await this.flight(start, target, { height: 70, duration: 900 });
+      await this.run(this.ball, [{ opacity: 1 }, { opacity: 0 }], 400);
+    } else if (/sack/.test(t)) {
+      const x = fx(start);
+      await this.run(this.ball, [0, 8, -8, 8, -8, 0].map((d) => ({ transform: `translate(${x + d}px, ${MID}px)` })), 400);
+      await this.flight(start, end, { duration: 600, wobble: 4 });
+    } else if (/penalty/.test(t)) {
+      this.dropFlag(start);
+      await sleep(800);
+      await this.flight(start, end, { duration: 900 });
+    } else if (/pass|interception/.test(t)) {
+      await this.flight(start, end, { height: Math.min(110, 40 + Math.abs(end - start) * 3), duration: 700 + Math.abs(end - start) * 30 });
+    } else {
+      await this.flight(start, end, { duration: Math.min(1800, 500 + Math.abs(end - start) * 45), wobble: 5 });
+    }
+
+    if (p.scoring && !fg) this.burst(end, this.colors[p.startTeam] ?? "#16a34a");
+    const b = resultBanner(p, this.colors);
+    if (b) await this.showBanner(b.text, b.color);
+    else await sleep(600);
+    this.place(after);
+  }
+}
+
+/* ---------- Broadcast view: camera behind the offense, little players act out the play ---------- */
+
+// World units are yards: x across the field (0 = offense's left sideline), z downfield from the line of scrimmage.
+const FIELD_W = 53.3, CX = FIELD_W / 2, CAM_H = 7, CAM_BACK = 12, NEAR = 0.7, FAR = 140;
+const NAME_RE = "([A-Z][a-zA-Z]*\\.\\s?[A-Z][A-Za-z'-]+)";
+const shortName = (n) => n?.replace(/^[A-Z][a-zA-Z]*\.\s?/, "") ?? null;
+const clampX = (x) => Math.max(0.8, Math.min(FIELD_W - 0.8, x));
+const lerp = (a, b, u) => a + (b - a) * u;
+
+// Pull the people involved out of ESPN's play text, e.g.
+// "(Shotgun) M.Stafford pass short right to P.Nacua to BUF 16 for 8 yards (T.Bernard)."
+function parseNames(text) {
+  const m = (re) => shortName(text.match(new RegExp(re))?.[1]);
+  const parens = [...text.matchAll(/\(([^)]*)\)/g)].map((x) => x[1]).filter((x) => !/shotgun|huddle/i.test(x));
+  const tacklers = (parens[0] ?? "").split(/[;,]/)
+    .map((x) => shortName(x.trim().match(new RegExp("^" + NAME_RE))?.[1])).filter(Boolean);
+  return {
+    lead: m("^\\s*(?:\\([^)]*\\)\\s*)*" + NAME_RE),
+    passer: m(NAME_RE + " pass"),
+    target: m("pass\\b[^.]*?\\b(?:to|for) " + NAME_RE),
+    interceptor: m("INTERCEPTED by " + NAME_RE),
+    kicker: m(NAME_RE + " (?:kicks|punts|\\d+ yard field goal)"),
+    returner: m("fair catch by " + NAME_RE) ?? m("\\.\\s+" + NAME_RE + " (?:to|for|pushed|ran|runs|MUFFS)"),
+    penalized: m("PENALTY on [A-Z]+-" + NAME_RE),
+    tacklers,
+  };
+}
+
+// Position along keyframes [[t, x, z], ...] (linear between frames).
+function track(kf, t) {
+  if (t <= kf[0][0]) return { x: kf[0][1], z: kf[0][2], moving: false };
+  for (let i = 1; i < kf.length; i++) {
+    const [t1, x1, z1] = kf[i], [t0, x0, z0] = kf[i - 1];
+    if (t <= t1) {
+      const u = (t - t0) / (t1 - t0);
+      return { x: lerp(x0, x1, u), z: lerp(z0, z1, u), moving: Math.abs(x1 - x0) + Math.abs(z1 - z0) > 0.05 };
+    }
+  }
+  const l = kf.at(-1);
+  return { x: l[1], z: l[2], moving: false };
+}
+
+const FORMATIONS = {
+  offense: (gun) => ({
+    C: [CX, -0.6], LG: [CX - 1.3, -0.7], RG: [CX + 1.3, -0.7], LT: [CX - 2.6, -0.8], RT: [CX + 2.6, -0.8],
+    TE: [CX + 3.9, -0.9], QB: gun ? [CX, -5] : [CX, -1.3], RB: gun ? [CX + 1.6, -5] : [CX, -6.5],
+    WR1: [CX - 16, -0.8], WR2: [CX + 17, -0.8], WR3: [CX - 9, -1.3],
+  }),
+  defense: () => ({
+    DE1: [CX - 3.6, 0.9], DT1: [CX - 1, 0.9], DT2: [CX + 1.2, 0.9], DE2: [CX + 4.4, 0.9],
+    LB1: [CX - 2.5, 5], LB2: [CX + 3, 5.2], NB: [CX - 9, 5.5], CB1: [CX - 16, 6.5], CB2: [CX + 17, 6.5],
+    S1: [CX - 7, 13], S2: [CX + 7, 13],
+  }),
+  puntOff: () => ({
+    C: [CX, -0.6], LG: [CX - 1.3, -0.7], RG: [CX + 1.3, -0.7], LT: [CX - 2.6, -0.8], RT: [CX + 2.6, -0.8],
+    LW: [CX - 3.9, -1], RW: [CX + 3.9, -1], PP: [CX + 0.5, -6], P: [CX, -14], G1: [CX - 18, -0.8], G2: [CX + 18, -0.8],
+  }),
+  puntDef: (land) => ({
+    R1: [CX - 3.5, 0.9], R2: [CX - 1.2, 0.9], R3: [CX + 1.2, 0.9], R4: [CX + 3.5, 0.9], R5: [CX - 6, 1.5], R6: [CX + 6, 1.5],
+    J1: [CX - 18, 1.5], J2: [CX + 18, 1.5], M1: [CX - 6, land * 0.5], M2: [CX + 6, land * 0.5], PR: [CX, land + 2],
+  }),
+  kickOff: () => Object.fromEntries([4.5, 9, 13.5, 18, 22.5, 31, 35.5, 40, 44.5, 49].map((x, i) => [`K${i}`, [x, -1]]).concat([["K", [CX - 1, -8]]])),
+  kickDef: (land) => ({
+    F0: [10, 10], F1: [18, 10], F2: [CX, 10], F3: [35, 10], F4: [43, 10], M0: [14, 18], M1: [CX, 18], M2: [39, 18],
+    D0: [CX - 8, land - 12], D1: [CX + 8, land - 12], KR: [CX, land],
+  }),
+  fgOff: () => ({
+    C: [CX, -0.6], LG: [CX - 1.3, -0.7], RG: [CX + 1.3, -0.7], LT: [CX - 2.6, -0.8], RT: [CX + 2.6, -0.8],
+    LE: [CX - 3.9, -0.9], RE: [CX + 3.9, -0.9], LWG: [CX - 5, -1.6], RWG: [CX + 5, -1.6], H: [CX, -7], K: [CX - 1.2, -9.5],
+  }),
+  fgDef: () => ({
+    B0: [CX - 4.5, 0.9], B1: [CX - 3, 0.9], B2: [CX - 1.5, 0.9], B3: [CX, 0.9], B4: [CX + 1.5, 0.9], B5: [CX + 3, 0.9], B6: [CX + 4.5, 0.9],
+    LB1: [CX - 2, 4], LB2: [CX + 2, 4], S1: [CX - 6, 10], S2: [CX + 6, 10],
+  }),
+};
+
+// Builds a scene: keyframed players plus ball segments (resting, flying, or carried by a player).
+class Script {
+  constructor(sc) { this.sc = sc; }
+  setup(off, def) {
+    let seed = 0;
+    for (const [side, roles] of [["off", off], ["def", def]]) {
+      for (const [r, [x, z]] of Object.entries(roles)) {
+        this.sc.actors[r] = { side, kf: [[0, clampX(x), z]], label: null, fallAt: Infinity, seed: seed++ * 1.7 };
+      }
+    }
+  }
+  roles(side) { return Object.keys(this.sc.actors).filter((r) => this.sc.actors[r].side === side); }
+  go(r, t, x, z) {
+    const kf = this.sc.actors[r].kf;
+    kf.push([Math.max(t, kf.at(-1)[0] + 0.05), clampX(x), z]);
+  }
+  at(r, t) { return track(this.sc.actors[r].kf, t); }
+  hand(r, t, h = 1.3) { const a = this.at(r, t); return { x: a.x + 0.3, z: a.z + 0.2, h }; }
+  nearest(roles, x, z) {
+    return [...roles].sort((a, b) => {
+      const pa = this.at(a, 0), pb = this.at(b, 0);
+      return Math.hypot(pa.x - x, pa.z - z) - Math.hypot(pb.x - x, pb.z - z);
+    });
+  }
+  label(r, name) { if (name && this.sc.actors[r]) this.sc.actors[r].label = name; }
+  fall(r, t) { this.sc.actors[r].fallAt = t; }
+  rest(t0, t1, pt) { this.sc.segs.push({ t0, t1, from: pt, to: pt, peak: 0 }); }
+  fly(t0, t1, from, to, peak = 0) { this.sc.segs.push({ t0, t1, from, to, peak }); }
+  hold(r, t0, t1, h = 1.2) { this.sc.segs.push({ t0, t1, hold: r, h }); }
+  snap(t0, to) {
+    this.rest(0, t0, { x: CX, z: 0, h: 0.15 });
+    this.fly(t0, t0 + 0.15, { x: CX, z: -0.1, h: 0.4 }, this.hand(to, t0 + 0.15));
+  }
+  // Offensive line vs. defensive line after the snap: pass pro sets back, run blocking drives forward.
+  lines(t0, pass, except = []) {
+    for (const r of ["C", "LG", "RG", "LT", "RT"]) { const a = this.at(r, 0); this.go(r, t0 + 0.6, a.x, a.z + (pass ? -0.8 : 0.8)); }
+    for (const r of ["DE1", "DT1", "DT2", "DE2"]) {
+      if (except.includes(r)) continue;
+      const a = this.at(r, 0);
+      this.go(r, t0 + 0.6, a.x, pass ? -0.2 : 1.1);
+    }
+  }
+}
+
+function ballAt(sc, t) {
+  const segs = sc.segs;
+  const seg = segs.find((s) => t >= s.t0 && t < s.t1) ?? (t < segs[0].t0 ? segs[0] : segs.at(-1));
+  const u = Math.max(0, Math.min(1, (t - seg.t0) / (seg.t1 - seg.t0 || 1)));
+  if (seg.hold) {
+    const actor = sc.actors[seg.hold], a = track(actor.kf, t);
+    return { x: a.x + 0.3, z: a.z + 0.2, h: t >= actor.fallAt ? 0.3 : seg.h };
+  }
+  return { x: lerp(seg.from.x, seg.to.x, u), z: lerp(seg.from.z, seg.to.z, u), h: lerp(seg.from.h, seg.to.h, u) + seg.peak * 4 * u * (1 - u) };
+}
+
+function buildScene(p, view, pre) {
+  const t = p.type.toLowerCase(), lt = p.text.toLowerCase();
+  const dir = view.dir(p.startTeam);
+  const los = p.startYL;
+  const ytez = dir > 0 ? 100 - los : los;
+  let endZ = p.endYL != null ? (p.endYL - los) * dir : p.yards;
+  if (p.scoring && /touchdown/.test(t)) endZ = Math.max(endZ, ytez + 2);
+  const sameSpot = pre && pre.team === p.startTeam && pre.yardLine === los && pre.down > 0;
+  const sc = {
+    los, dir, off: p.startTeam, def: Object.keys(view.teams).find((id) => id !== p.startTeam),
+    ltgZ: sameSpot ? (pre.goal ? ytez : pre.distance) : null,
+    actors: {}, segs: [], duration: 0, flag: null,
+  };
+  const S = new Script(sc);
+  const names = parseNames(p.text);
+  const gun = !p.text || /shotgun/i.test(p.text); // idle formations default to shotgun
+  const T0 = 0.9;
+  const kind = /field goal|extra point/.test(t) ? "fg" : /punt/.test(t) ? "punt" : /kickoff/.test(t) ? "kickoff"
+    : /sack/.test(t) ? "sack" : /pass|interception/.test(t) ? "pass" : /rush|fumble/.test(t) ? "run"
+    : /penalty/.test(t) ? "penalty" : "idle";
+  const DBS = ["CB1", "CB2", "NB", "S1", "S2", "LB1", "LB2"];
+
+  if (kind === "run") {
+    S.setup(FORMATIONS.offense(gun), FORMATIONS.defense());
+    const gm = lt.match(/(left|right) (end|tackle|guard)|up the middle/);
+    const side = gm?.[1] === "left" ? -1 : gm?.[1] === "right" ? 1 : 0;
+    const gapX = CX + side * ({ end: 6.5, tackle: 3.2, guard: 1.9 }[gm?.[2]] ?? 0);
+    const ob = /\bob\b/.test(lt);
+    const endX = ob ? (side < 0 ? 0.8 : FIELD_W - 0.8) : clampX(gapX + side * 2);
+    const qb0 = S.at("QB", 0);
+    const scramble = /scrambles|kneels/.test(lt);
+    const runner = scramble ? "QB" : "RB";
+    S.snap(T0, "QB");
+    S.lines(T0, false);
+    for (const r of ["WR1", "WR2", "WR3"]) { const a = S.at(r, 0); S.go(r, T0 + 1.6, a.x + (CX - a.x) * 0.1, a.z + 4); }
+    S.go("TE", T0 + 0.8, S.at("TE", 0).x + 0.5, 1.2);
+    let tRun;
+    if (scramble) {
+      S.go("QB", T0 + 0.9, CX, qb0.z - 1.5);
+      tRun = T0 + 1.6;
+      S.go("QB", tRun, gapX, 0.4);
+      S.hold("QB", T0 + 0.15, 99);
+    } else {
+      const tHand = T0 + 0.5;
+      S.go("QB", tHand, CX + side * 0.4, gun ? qb0.z : -3);
+      S.go("RB", tHand, CX + side * 0.9, gun ? qb0.z + 0.5 : -3.3);
+      S.hold("QB", T0 + 0.15, tHand);
+      S.hold("RB", tHand, 99);
+      S.go("QB", tHand + 0.8, CX - side * 2, qb0.z - 1);
+      tRun = T0 + 1.05;
+      S.go("RB", tRun, gapX, 0.2);
+    }
+    const tEnd = tRun + Math.max(0.35, Math.abs(endZ) / 7.5 + Math.abs(endX - gapX) / 12);
+    S.go(runner, tEnd, endX, endZ);
+    S.label(runner, names.lead);
+    const defs = S.roles("def");
+    const tk = S.nearest(defs, endX, endZ).slice(0, Math.max(1, names.tacklers.length));
+    tk.forEach((r, i) => {
+      S.go(r, tEnd, endX + (i ? -0.7 : 0.6), endZ + (p.scoring ? -2.5 : 0.8 - i * 0.4));
+      S.label(r, names.tacklers[i]);
+    });
+    for (const r of defs) if (!tk.includes(r)) { const a = S.at(r, 0); S.go(r, tEnd, lerp(a.x, endX, 0.45), lerp(a.z, endZ, 0.45) + 1.5); }
+    if (!p.scoring && !ob) { S.fall(runner, tEnd + 0.05); S.fall(tk[0], tEnd + 0.1); }
+    sc.duration = tEnd + 1.4;
+  } else if (kind === "pass") {
+    S.setup(FORMATIONS.offense(gun), FORMATIONS.defense());
+    const pm = lt.match(/pass (?:incomplete )?(short|deep)?\s*(left|middle|right)?/);
+    const deep = pm?.[1] === "deep";
+    const side = pm?.[2] === "left" ? -1 : pm?.[2] === "right" ? 1 : 0;
+    const inc = /incomplet/.test(t), pick = /interception/.test(t), ob = /\bob\b/.test(lt);
+    const target = side < 0 ? (deep ? "WR1" : "WR3") : side > 0 ? (deep ? "WR2" : "TE") : (deep ? "WR3" : "TE");
+    const qb0 = S.at("QB", 0);
+    const dropZ = qb0.z - (gun ? 1.5 : 5);
+    S.snap(T0, "QB");
+    S.go("QB", T0 + 0.9, CX, dropZ);
+    S.lines(T0, true);
+    const tThrow = T0 + 1.6;
+    const catchZ = inc || pick ? (deep ? 22 : 9) : deep ? Math.max(14, endZ * 0.85) : Math.max(-3, Math.min(endZ, Math.max(2, endZ * 0.6)));
+    const catchX = clampX(CX + (side ? side * (deep ? 15 : 9) : 3));
+    const from = { x: CX + 0.3, z: dropZ + 0.2, h: 2 };
+    const air = Math.hypot(catchX - from.x, catchZ - from.z);
+    const tCatch = tThrow + 0.3 + air / 26;
+    const t0 = S.at(target, 0);
+    S.go(target, lerp(T0, tCatch, 0.55), lerp(t0.x, catchX, 0.25), catchZ * 0.7);
+    S.go(target, tCatch, catchX, catchZ);
+    for (const r of ["WR1", "WR2", "WR3", "TE", "RB"]) {
+      if (r === target) continue;
+      const a = S.at(r, 0);
+      if (r === "RB") S.go(r, T0 + 0.8, CX + 2, dropZ + 1);
+      else S.go(r, T0 + 2.6, a.x + (CX - a.x) * 0.15, a.z + (r === "TE" ? 6 : 13));
+    }
+    const cover = S.nearest(DBS, catchX, catchZ)[0];
+    S.go(cover, tCatch, catchX + (pick ? 0 : 1), catchZ + (pick ? 0.4 : 1.2));
+    for (const r of DBS) if (r !== cover) { const a = S.at(r, 0); S.go(r, T0 + 1.5, a.x * 0.9 + CX * 0.1, a.z + 3); }
+    S.hold("QB", T0 + 0.15, tThrow, 2);
+    S.fly(tThrow, tCatch, from, { x: catchX, z: catchZ, h: 1.4 }, 2 + air * 0.12);
+    S.label("QB", names.passer);
+    S.label(target, names.target);
+    let tEnd = tCatch;
+    if (inc) {
+      S.fly(tCatch, tCatch + 0.5, { x: catchX, z: catchZ, h: 1.4 }, { x: catchX + side, z: catchZ + 3, h: 0 }, 0.6);
+      S.rest(tCatch + 0.5, 99, { x: catchX + side, z: catchZ + 3, h: 0.1 });
+      tEnd = tCatch + 0.6;
+    } else if (pick) {
+      S.label(cover, names.interceptor);
+      const retX = clampX(catchX - side * 4);
+      tEnd = tCatch + Math.max(0.5, Math.abs(catchZ - endZ) / 8);
+      S.go(cover, tEnd, retX, endZ);
+      S.go(target, tEnd, retX + 0.7, endZ - 0.8);
+      S.label(target, names.tacklers[0]);
+      S.hold(cover, tCatch, 99);
+      S.fall(cover, tEnd);
+    } else {
+      const endX = ob ? (side < 0 ? 0.8 : FIELD_W - 0.8) : clampX(catchX + side * 2);
+      tEnd = tCatch + Math.max(0.35, (endZ - catchZ) / 8.5 + Math.abs(endX - catchX) / 12);
+      S.go(target, tEnd, endX, endZ);
+      S.hold(target, tCatch, 99);
+      S.go(cover, tEnd, endX + 0.6, endZ + (p.scoring ? -2.5 : 0.7));
+      S.label(cover, names.tacklers[0]);
+      if (names.tacklers[1]) {
+        const second = S.nearest(DBS.filter((r) => r !== cover), endX, endZ)[0];
+        S.go(second, tEnd + 0.05, endX - 0.6, endZ + 0.4);
+        S.label(second, names.tacklers[1]);
+      }
+      if (!p.scoring && !ob) { S.fall(target, tEnd + 0.05); S.fall(cover, tEnd + 0.1); }
+    }
+    sc.duration = tEnd + 1.4;
+  } else if (kind === "sack") {
+    S.setup(FORMATIONS.offense(gun), FORMATIONS.defense());
+    const qb0 = S.at("QB", 0);
+    const dropZ = Math.max(endZ + 0.8, qb0.z - (gun ? 1.5 : 5));
+    const tSack = T0 + 2.1;
+    S.snap(T0, "QB");
+    S.go("QB", T0 + 0.9, CX, dropZ);
+    S.lines(T0, true, ["DE2"]);
+    S.go("DE2", T0 + 0.6, CX + 4, -0.2);
+    S.go("DE2", tSack, CX + 0.8, dropZ + 0.2);
+    S.go("QB", tSack, CX - 0.3, dropZ);
+    S.go("QB", tSack + 0.35, CX - 0.6, endZ);
+    S.go("DE2", tSack + 0.35, CX - 0.1, endZ + 0.3);
+    S.fall("QB", tSack + 0.3);
+    S.fall("DE2", tSack + 0.35);
+    for (const r of ["WR1", "WR2", "WR3", "TE"]) { const a = S.at(r, 0); S.go(r, T0 + 2.6, a.x + (CX - a.x) * 0.15, a.z + 12); }
+    for (const r of DBS) { const a = S.at(r, 0); S.go(r, T0 + 1.5, a.x, a.z + 3); }
+    S.hold("QB", T0 + 0.15, 99, 1.4);
+    S.label("QB", names.lead);
+    S.label("DE2", names.tacklers[0]);
+    sc.duration = tSack + 1.6;
+  } else if (kind === "punt") {
+    const land = +(lt.match(/punts (\d+) yards?/)?.[1] ?? 42);
+    const landX = CX + 4;
+    S.setup(FORMATIONS.puntOff(), FORMATIONS.puntDef(land));
+    S.rest(0, T0, { x: CX, z: 0, h: 0.15 });
+    S.fly(T0, T0 + 0.7, { x: CX, z: -0.1, h: 0.4 }, { x: CX + 0.3, z: -13.8, h: 1.2 }, 0.6);
+    const tKick = T0 + 1.4;
+    S.go("P", tKick, CX, -12.5);
+    S.hold("P", T0 + 0.7, tKick);
+    const tLand = tKick + 2.6;
+    S.fly(tKick, tLand, { x: CX, z: -12, h: 1.3 }, { x: landX, z: land, h: 1.4 }, 11);
+    S.go("PR", tLand, landX, land);
+    for (const r of S.roles("off")) if (!["P", "PP"].includes(r)) { const a = S.at(r, 0); S.go(r, tLand, lerp(a.x, landX, 0.5), land - 7 - (a.seed % 3)); }
+    for (const r of S.roles("def")) if (r !== "PR") { const a = S.at(r, 0); S.go(r, tLand, lerp(a.x, landX, 0.4), lerp(a.z, land - 10, 0.6)); }
+    let tEnd = tLand + 0.3;
+    if (!/fair catch|touchback|downed|out of bounds/.test(lt) && endZ < land - 0.5) {
+      tEnd = tLand + Math.max(0.5, (land - endZ) / 8);
+      const tk = names.tacklers[0] && names.tacklers[0] === names.kicker ? "P" : "G1";
+      S.go("PR", tEnd, landX - 3, endZ);
+      S.go(tk, tEnd, landX - 3.6, endZ - 0.8);
+      S.fall("PR", tEnd + 0.05);
+      S.fall(tk, tEnd + 0.1);
+      S.label(tk, names.tacklers[0]);
+    }
+    S.hold("PR", tLand, 99);
+    S.label("P", names.kicker);
+    S.label("PR", names.returner);
+    sc.duration = tEnd + 1.4;
+  } else if (kind === "kickoff") {
+    const land = +(lt.match(/kicks (\d+) yards?/)?.[1] ?? 60);
+    S.setup(FORMATIONS.kickOff(), FORMATIONS.kickDef(land));
+    for (const r of S.roles("off")) { const a = S.at(r, 0); S.go(r, T0, r === "K" ? CX - 0.3 : a.x, r === "K" ? -0.5 : a.z + 0.8); }
+    S.rest(0, T0 + 0.1, { x: CX, z: 0, h: 0.15 });
+    const tLand = T0 + 2.8;
+    S.fly(T0 + 0.1, tLand, { x: CX, z: 0.1, h: 0.2 }, { x: CX, z: land, h: 1.4 }, 12);
+    for (const r of S.roles("off")) { const a = S.at(r, 0); S.go(r, tLand, lerp(a.x, CX, 0.3), land * 0.55); }
+    for (const r of S.roles("def")) if (r !== "KR") { const a = S.at(r, 0); S.go(r, tLand, a.x, a.z + 4); }
+    let tEnd = tLand + 0.3;
+    if (!/touchback/.test(lt)) {
+      tEnd = tLand + Math.max(0.6, Math.abs(land - endZ) / 8.5);
+      S.go("KR", tLand, CX, land);
+      S.go("KR", tEnd, CX - 4, endZ);
+      S.hold("KR", tLand, 99);
+      if (!p.scoring) {
+        const tk = names.tacklers[0] && names.tacklers[0] === names.kicker ? "K" : S.nearest(S.roles("off"), CX - 4, endZ)[0];
+        S.go(tk, tEnd, CX - 4.6, endZ - 0.8);
+        S.label(tk, names.tacklers[0]);
+        S.fall("KR", tEnd + 0.05);
+        S.fall(tk, tEnd + 0.1);
+      }
+    }
+    S.label("K", names.kicker);
+    S.label("KR", names.returner);
+    sc.duration = tEnd + 1.4;
+  } else if (kind === "fg") {
+    const dist = +(lt.match(/(\d+) yard field goal/)?.[1] ?? ytez + 17);
+    S.setup(FORMATIONS.fgOff(), FORMATIONS.fgDef());
+    S.rest(0, T0, { x: CX, z: 0, h: 0.15 });
+    S.fly(T0, T0 + 0.35, { x: CX, z: -0.1, h: 0.4 }, { x: CX, z: -7, h: 0.3 }, 0.4);
+    const tKick = T0 + 1;
+    S.rest(T0 + 0.35, tKick, { x: CX, z: -7, h: 0.3 });
+    S.go("K", tKick, CX - 0.2, -7.4);
+    for (const r of S.roles("def")) { const a = S.at(r, 0); S.go(r, T0 + 0.7, a.x, a.z - 0.5); }
+    const good = !/miss|block|no good/.test(t);
+    const wide = /wide left/.test(lt) ? -1 : 1;
+    const goalZ = ytez + 10;
+    const tGoal = tKick + 0.9 + dist / 45;
+    const endPt = { x: good ? CX : CX + wide * 4.5, z: goalZ + 4, h: 3.8 };
+    S.fly(tKick, tGoal, { x: CX, z: -6.8, h: 0.4 }, endPt, 6 + dist * 0.06);
+    S.rest(tGoal, 99, { ...endPt, h: 0 });
+    S.label("K", names.kicker);
+    sc.duration = tGoal + 1;
+  } else {
+    S.setup(FORMATIONS.offense(gun), FORMATIONS.defense());
+    S.rest(0, 99, { x: CX, z: 0, h: 0.15 });
+    if (kind === "penalty") {
+      sc.flag = { t0: 0.6, t1: 1.3, from: { x: CX + 14, z: 3, h: 2.5 }, to: { x: CX + 1.5, z: 0.6, h: 0 } };
+      const a = S.at("RT", 0);
+      S.go("RT", 0.5, a.x, a.z + 0.7);
+      S.label("RT", names.penalized);
+      sc.duration = 2.6;
+    } else {
+      sc.duration = p.text ? 1.6 : 0;
+    }
+  }
+  return sc;
+}
+
+class Broadcast extends PlayView {
+  constructor() {
+    super(`<canvas></canvas>`);
+    this.root.classList.add("cam");
+    this.canvas = this.root.querySelector("canvas");
+    this.ctx = this.canvas.getContext("2d");
+    this.scene = null;
+    this.t = 0;
+    this.cam = { x: CX, z: -CAM_BACK };
+    new ResizeObserver(() => this.resize()).observe(this.root);
+  }
+
+  resize() {
+    const w = this.canvas.clientWidth;
+    if (!w || w === this.W) return;
+    const dpr = devicePixelRatio || 1;
+    this.W = w;
+    this.H = Math.round(Math.min(w * 0.52, 340));
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(this.H * dpr);
+    this.canvas.style.height = this.H + "px";
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.draw();
+  }
+
+  place(st) {
+    this.state = st;
+    const team = st?.team && this.teams?.[st.team] ? st.team : null;
+    this.scene = team && st.yardLine != null
+      ? buildScene({ type: "", text: "", startYL: st.yardLine, endYL: st.yardLine, startTeam: team, yards: 0 }, this, st)
+      : null;
+    this.t = 0;
+    this.cam = { x: CX, z: -CAM_BACK };
+    this.draw();
+  }
+
+  play(sc) {
+    return new Promise((resolve) => {
+      this.scene = sc;
+      this.t = 0;
+      this.cam = { x: CX, z: -CAM_BACK };
+      let last = performance.now();
+      const tick = (now) => {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        this.t += dt;
+        try { this.draw(dt); } catch (err) { console.error(err); }
+        if (this.t >= sc.duration || !this.root.isConnected) return resolve();
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  async animatePlay(p, after) {
+    const [label, tone] = playLabel(p);
+    this.caption(label, p.text, tone);
+    if (p.startYL == null || !this.teams?.[p.startTeam]) { this.place(after); return sleep(1500); }
+    const sc = buildScene(p, this, this.state);
+    if (REDUCE_MOTION) {
+      this.scene = sc;
+      this.t = sc.duration;
+      this.draw();
+      await sleep(1500);
+    } else {
+      await this.play(sc);
+    }
+    const b = resultBanner(p, this.colors);
+    if (b) await this.showBanner(b.text, b.color);
+    else await sleep(500);
+    this.place(after);
+  }
+
+  draw(dt = 0) {
+    const { ctx, W, H } = this;
+    if (!W) return;
+    const sc = this.scene, t = this.t;
+    const f = W * 0.27, hor = H * 0.17;
+
+    // Stands and out-of-bounds grass
+    const sky = ctx.createLinearGradient(0, 0, 0, hor);
+    sky.addColorStop(0, "#0b1220");
+    sky.addColorStop(1, "#334155");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, hor);
+    ctx.fillStyle = "#1b5520";
+    ctx.fillRect(0, hor, W, H - hor);
+    if (!sc) return;
+
+    // Camera trails the ball, pulling back when it's high in the air.
+    const ball = sc.segs.length ? ballAt(sc, t) : { x: CX, z: 0, h: 0 };
+    const k = dt ? Math.min(1, dt * 2.5) : 1;
+    const focus = Math.max(ball.z - ball.h * 0.6, -3); // don't retreat with QB drops/punter
+    this.cam.z += (focus - CAM_BACK - this.cam.z) * k;
+    this.cam.x += (CX + (ball.x - CX) * 0.5 - this.cam.x) * k;
+    const cam = this.cam;
+    const P = (x, h, z) => {
+      const d = z - cam.z;
+      if (d < NEAR) return null;
+      const s = f / d;
+      return { x: W / 2 + (x - cam.x) * s, y: hor + (CAM_H - h) * s, s };
+    };
+    const zOf = (yl) => (yl - sc.los) * sc.dir;
+    const quad = (x1, x2, za, zb, fill) => {
+      const z1 = Math.max(Math.min(za, zb), cam.z + NEAR + 0.01), z2 = Math.min(Math.max(za, zb), cam.z + FAR);
+      if (z2 <= z1) return;
+      const a = P(x1, 0, z1), b = P(x2, 0, z1), c = P(x2, 0, z2), d = P(x1, 0, z2);
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y);
+      ctx.fill();
+    };
+    const home = this.teams[this.homeId];
+    const away = this.teams[Object.keys(this.teams).find((id) => id !== this.homeId)];
+
+    // Turf: 5-yard stripes, end zones in team colors (yard line 0 is the home goal line).
+    for (let yl = -10; yl < 110; yl += 5) {
+      const fill = yl < 0 ? `#${home.color}` : yl >= 100 ? `#${away.color}` : (yl / 5) % 2 ? "#2d8434" : "#33903a";
+      quad(0, FIELD_W, zOf(yl), zOf(yl + 5), fill);
+    }
+    quad(-2, 0, zOf(-10), zOf(110), "#e5e7eb");
+    quad(FIELD_W, FIELD_W + 2, zOf(-10), zOf(110), "#e5e7eb");
+    for (let yl = 0; yl <= 100; yl += 5) {
+      const w = yl % 100 === 0 ? 0.35 : 0.18;
+      quad(0, FIELD_W, zOf(yl) - w / 2, zOf(yl) + w / 2, "rgba(255,255,255,.85)");
+    }
+    for (let yl = 1; yl < 100; yl++) {
+      if (yl % 5 === 0 || Math.abs(zOf(yl) - cam.z) > 45) continue;
+      const z = zOf(yl);
+      for (const [x1, x2] of [[0.6, 1.3], [23.2, 23.9], [29.4, 30.1], [52, 52.7]]) quad(x1, x2, z - 0.06, z + 0.06, "rgba(255,255,255,.7)");
+    }
+    if (sc.ltgZ != null) quad(0, FIELD_W, sc.ltgZ - 0.2, sc.ltgZ + 0.2, "#facc15");
+    quad(0, FIELD_W, -0.15, 0.15, "#3b82f6");
+
+    // Yard numbers and end zone names, painted on the turf
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const paint = (txt, x, z, size, alpha) => {
+      const pr = P(x, 0, z);
+      if (!pr || size * pr.s < 5) return;
+      ctx.font = `800 ${size * pr.s}px system-ui, sans-serif`;
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fillText(txt, pr.x, pr.y);
+    };
+    for (let yl = 10; yl <= 90; yl += 10) {
+      const n = yl <= 50 ? yl : 100 - yl;
+      paint(n, 9, zOf(yl), 2, 0.8);
+      paint(n, FIELD_W - 9, zOf(yl), 2, 0.8);
+    }
+    paint(home.abbreviation, CX, zOf(-5), 3.5, 0.9);
+    paint(away.abbreviation, CX, zOf(105), 3.5, 0.9);
+
+    // Goal posts at the back of each end zone
+    for (const yl of [-10, 110]) {
+      const z = zOf(yl);
+      const base = P(CX, 0, z), bar = P(CX, 3.33, z);
+      if (!base) continue;
+      ctx.strokeStyle = "#facc15";
+      ctx.lineWidth = Math.max(1.2, 0.2 * base.s);
+      ctx.beginPath();
+      ctx.moveTo(base.x, base.y); ctx.lineTo(bar.x, bar.y);
+      const l0 = P(CX - 3.08, 3.33, z), r0 = P(CX + 3.08, 3.33, z), l1 = P(CX - 3.08, 11.7, z), r1 = P(CX + 3.08, 11.7, z);
+      ctx.moveTo(l1.x, l1.y); ctx.lineTo(l0.x, l0.y); ctx.lineTo(r0.x, r0.y); ctx.lineTo(r1.x, r1.y);
+      ctx.stroke();
+    }
+
+    // Players and ball, far to near
+    const items = Object.values(sc.actors).map((a) => ({ a, pos: track(a.kf, t), z: track(a.kf, t).z }));
+    items.push({ ball, z: ball.z - 0.01 });
+    items.sort((m, n) => n.z - m.z);
+    for (const it of items) it.ball ? this.drawBall(P, it.ball) : this.drawPlayer(P, it.a, it.pos, sc);
+
+    if (sc.flag && t >= sc.flag.t0) {
+      const fl = sc.flag, u = Math.min(1, (t - fl.t0) / (fl.t1 - fl.t0));
+      const pr = P(lerp(fl.from.x, fl.to.x, u), lerp(fl.from.h, fl.to.h, u) + 2 * u * (1 - u), lerp(fl.from.z, fl.to.z, u));
+      if (pr) {
+        const sz = Math.max(4, 0.4 * pr.s);
+        ctx.fillStyle = "#facc15";
+        ctx.fillRect(pr.x - sz / 2, pr.y - sz / 2, sz, sz);
+      }
+    }
+
+    // Name tags on top of everything
+    ctx.font = "600 11px system-ui, sans-serif";
+    const tagged = items.filter((it) => it.a?.label).sort((m, n) => (m.a.side === "off") - (n.a.side === "off"));
+    for (const it of tagged) {
+      const pr = P(it.pos.x, 2.6, it.pos.z);
+      if (!pr) continue;
+      const w = ctx.measureText(it.a.label).width + 10;
+      ctx.fillStyle = it.a.side === "off" ? "rgba(0,0,0,.72)" : "rgba(127,29,29,.85)";
+      ctx.beginPath();
+      ctx.roundRect(pr.x - w / 2, pr.y - 16, w, 16, 8);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillText(it.a.label, pr.x, pr.y - 8);
+    }
+  }
+
+  drawPlayer(P, a, pos, sc) {
+    const pr = P(pos.x, 0, pos.z);
+    if (!pr) return;
+    const { ctx } = this, s = pr.s;
+    const team = this.teams[a.side === "off" ? sc.off : sc.def];
+    const color = `#${team.color || "555"}`;
+    const jersey = team.home ? color : "#f3f4f6";
+    ctx.fillStyle = "rgba(0,0,0,.28)";
+    ctx.beginPath();
+    ctx.ellipse(pr.x, pr.y, 0.55 * s, 0.16 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (this.t >= a.fallAt) {
+      ctx.fillStyle = jersey;
+      ctx.beginPath();
+      ctx.roundRect(pr.x - 0.85 * s, pr.y - 0.45 * s, 1.5 * s, 0.42 * s, 0.15 * s);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(pr.x + 0.75 * s, pr.y - 0.25 * s, 0.27 * s, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    const swing = pos.moving ? Math.sin(this.t * 16 + a.seed) * 0.3 * s : 0;
+    ctx.strokeStyle = team.home ? "#e5e7eb" : color;
+    ctx.lineWidth = Math.max(1, 0.22 * s);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 0.17 * s, pr.y - 0.8 * s); ctx.lineTo(pr.x - 0.17 * s + swing, pr.y);
+    ctx.moveTo(pr.x + 0.17 * s, pr.y - 0.8 * s); ctx.lineTo(pr.x + 0.17 * s - swing, pr.y);
+    ctx.stroke();
+    ctx.fillStyle = jersey;
+    ctx.strokeStyle = team.home ? "rgba(0,0,0,.35)" : color;
+    ctx.lineWidth = Math.max(0.8, 0.07 * s);
+    ctx.beginPath();
+    ctx.roundRect(pr.x - 0.42 * s, pr.y - 1.62 * s, 0.84 * s, 0.86 * s, 0.18 * s);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y - 1.88 * s, 0.3 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawBall(P, b) {
+    const { ctx } = this;
+    const g = P(b.x, 0, b.z), pr = P(b.x, b.h, b.z);
+    if (!g || !pr) return;
+    if (b.h > 0.5) {
+      ctx.fillStyle = "rgba(0,0,0,.25)";
+      ctx.beginPath();
+      ctx.ellipse(g.x, g.y, Math.max(1.5, 0.3 * g.s), Math.max(0.8, 0.1 * g.s), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const rx = Math.max(3.6, 0.4 * pr.s), ry = Math.max(2.3, 0.25 * pr.s);
+    ctx.fillStyle = "#8b4513";
+    ctx.strokeStyle = b.h > 0.5 ? "#fff" : "#3b1d08"; // white outline so it pops against the turf in flight
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(pr.x, pr.y, rx, ry, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+const fields = new Map(); // event id -> Field, kept alive across re-renders
+
+function mountFields() {
+  const mounted = new Set();
+  for (const slot of document.querySelectorAll("#games .field-slot")) {
+    const e = events.find((x) => x.id === slot.dataset.field);
+    if (!e) continue;
+    let f = fields.get(e.id);
+    if (!f) fields.set(e.id, (f = new Field()));
+    slot.append(f.root);
+    f.syncFromScoreboard(e);
+    mounted.add(e.id);
+  }
+  for (const id of fields.keys()) if (!mounted.has(id)) fields.delete(id);
+}
+
+/* ---------- Scores view ---------- */
+
+async function load() {
+  clearTimeout(timer);
+  if (view === "schedule") return loadSchedule(true);
+  const req = ++reqId;
+  try {
+    const data = await getJSON(selectedKey ? weekUrl(selectedKey) : API);
+    if (req !== reqId || view !== "scores") return; // a newer request superseded this one
+    initCalendar(data);
+    events = data.events ?? [];
+    syncPicker();
+    const byes = data.week?.teamsOnBye ?? [];
+    $("byes").textContent = byes.length ? "On bye: " + byes.map((t) => t.displayName).join(", ") : "";
+    render();
+    stamp();
+  } catch (err) {
+    if (req !== reqId) return;
+    if (!events.length) $("games").innerHTML = `<div class="error">Couldn't load games (${esc(err.message)}).</div>`;
+    stamp("Update failed — retrying");
+  }
+  const anyLive = events.some((e) => e.status.type.state === "in");
+  timer = setTimeout(load, anyLive ? LIVE_MS : IDLE_MS);
+}
+
+function render() {
+  const list = events
+    .filter((e) => filter === "all" || e.status.type.state === filter)
+    .sort((a, b) => STATE_ORDER[a.status.type.state] - STATE_ORDER[b.status.type.state]
+                  || new Date(a.date) - new Date(b.date));
+  $("games").innerHTML = list.length
+    ? `<div class="grid">${list.map(card).join("")}</div>`
+    : `<div class="empty">No games here.</div>`;
+  mountFields();
+  if (scrollToCard) {
+    document.querySelector(`.card[data-id="${CSS.escape(scrollToCard)}"]`)?.scrollIntoView({ block: "center" });
+    scrollToCard = null;
+  }
+}
+
+function kickoff(e, opts) {
+  if (e.competitions[0].timeValid === false) {
+    return new Date(e.date).toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" }) + " · TBD";
+  }
+  return new Date(e.date).toLocaleString([], opts ?? { weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function card(e) {
+  const comp = e.competitions[0];
+  const state = e.status.type.state;
+  const sit = comp.situation;
+  const teams = ["away", "home"].map((side) => comp.competitors.find((c) => c.homeAway === side));
+  const done = state === "post";
+
+  const statusLeft = state === "in"
+    ? `<span class="state"><span class="dot"></span>${esc(e.status.type.shortDetail)}</span>`
+    : state === "pre"
+      ? `<span class="state">${esc(kickoff(e))}</span>`
+      : `<span class="state">${esc(e.status.type.shortDetail)}</span>`;
+
+  const rows = teams.map((t) => {
+    const rec = t.records?.find((r) => r.type === "total")?.summary;
+    const hasBall = state === "in" && sit?.possession === t.team.id;
+    const loser = done && t.winner === false && teams.some((o) => o.winner);
+    return `<div class="team ${loser ? "loser" : ""}">
+      ${logo(t.team)}
+      <div><span class="name">${esc(t.team.shortDisplayName)}</span>${hasBall ? '<span class="poss">●</span>' : ""}<span class="rec">${esc(rec)}</span></div>
+      <div class="score">${state === "pre" ? "" : esc(t.score)}</div>
+    </div>`;
+  }).join("");
+
+  const chips = [];
+  if (state === "in" && sit?.downDistanceText) chips.push(`<span class="chip ${sit.isRedZone ? "rz" : ""}">${esc(sit.downDistanceText)}</span>`);
+  if (comp.broadcast) chips.push(`<span class="chip">${esc(comp.broadcast)}</span>`);
+  if (state === "pre" && comp.odds?.[0]?.details) chips.push(`<span class="chip">${esc(comp.odds[0].details)} · O/U ${esc(comp.odds[0].overUnder)}</span>`);
+  if (comp.venue?.fullName) chips.push(`<span>${esc(comp.venue.fullName)}</span>`);
+
+  const field = state === "in" && sit ? `<div class="field-slot" data-field="${esc(e.id)}"></div>` : "";
+
+  return `<article class="card ${state === "in" ? "live" : ""} ${openCards.has(e.id) ? "open" : ""}" data-id="${esc(e.id)}">
+    <div class="status">${statusLeft}<span>${esc(e.shortName)}</span></div>
+    ${rows}
+    ${field}
+    <div class="meta">${chips.join("")}</div>
+    <div class="details">${details(e, teams, state)}</div>
+    ${state === "pre" ? "" : `<button class="pbp-btn" data-pbp="${esc(e.id)}">${state === "in" ? "● Live play-by-play" : "Play-by-play"}</button>`}
+  </article>`;
+}
+
+function details(e, teams, state) {
+  const comp = e.competitions[0];
+  let html = "";
+  const periods = Math.max(0, ...teams.map((t) => t.linescores?.length ?? 0));
+  if (state !== "pre" && periods) {
+    const head = Array.from({ length: periods }, (_, i) => `<th>${i < 4 ? i + 1 : "OT"}</th>`).join("");
+    const body = teams.map((t) => `<tr><td>${esc(t.team.abbreviation)}</td>${
+      Array.from({ length: periods }, (_, i) => `<td>${esc(t.linescores?.[i]?.value ?? "-")}</td>`).join("")
+    }<td>${esc(t.score)}</td></tr>`).join("");
+    html += `<table><tr><th></th>${head}<th>T</th></tr>${body}</table>`;
+  }
+  const leaders = (comp.leaders ?? []).map((cat) => {
+    const l = cat.leaders?.[0];
+    if (!l) return "";
+    const abbr = teams.find((t) => t.team.id === l.team?.id)?.team.abbreviation ?? "";
+    return `<div class="leader"><b>${esc(cat.shortDisplayName)}</b><div>${esc(l.athlete?.shortName)} <span class="rec">${esc(abbr)}</span><br><span class="rec" style="margin:0">${esc(l.displayValue)}</span></div></div>`;
+  }).join("");
+  html += leaders;
+  const link = e.links?.find((l) => l.rel?.includes("summary"))?.href;
+  if (link) html += `<div style="margin-top:8px"><a href="${esc(link)}" target="_blank" rel="noopener">Full game on ESPN →</a></div>`;
+  return html || `<span class="rec" style="margin:0">No extra details yet.</span>`;
+}
+
+/* ---------- Schedule view ---------- */
+
+async function loadSchedule(force) {
+  clearTimeout(timer);
+  if (schedule && !force) return renderSchedule(true);
+  const req = ++reqId;
+  if (!schedule) $("games").innerHTML = `<div class="empty">Loading full season…</div>`;
+  stamp("Loading…");
+  try {
+    if (!weeks.length) initCalendar(await getJSON(API));
+    // Regular season + postseason, one request per week, all in parallel.
+    const season = weeks.filter((w) => w.type === "2" || w.type === "3");
+    const results = await Promise.all(season.map((w) => getJSON(weekUrl(w.key)).then((d) => d.events ?? [])));
+    if (req !== reqId || view !== "schedule") return;
+    const first = !schedule;
+    schedule = season.map((w, i) => ({ ...w, events: results[i].sort((a, b) => new Date(a.date) - new Date(b.date)) }));
+    fillTeams();
+    renderSchedule(first);
+    stamp();
+  } catch (err) {
+    if (req !== reqId) return;
+    if (!schedule) $("games").innerHTML = `<div class="error">Couldn't load the schedule (${esc(err.message)}).</div>`;
+    stamp("Update failed");
+  }
+}
+
+function fillTeams() {
+  const all = new Map();
+  for (const w of schedule) for (const e of w.events) for (const c of e.competitions[0].competitors) {
+    if (Number(c.team.id) > 0) all.set(c.team.id, c.team.displayName);
+  }
+  $("team").innerHTML = `<option value="">All teams</option>` + [...all]
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join("");
+  $("team").value = team;
+}
+
+function renderSchedule(scrollToCurrent) {
+  $("byes").textContent = "";
+  $("games").innerHTML = schedule.map((w) => {
+    const list = team ? w.events.filter((e) => e.competitions[0].competitors.some((c) => c.team.id === team)) : w.events;
+    let rows = list.map(scheduleRow).join("");
+    if (!rows && team && w.type === "2") rows = `<div class="row bye"><div class="when">—</div><div>Bye week</div><div></div></div>`;
+    if (!rows) return "";
+    const isNow = w.key === currentKey;
+    return `<section class="wk ${isNow ? "current" : ""}">
+      <h2 id="wk-${w.key}">${esc(w.label)} <span>${esc(w.detail)}</span>${isNow ? '<span class="chip">This week</span>' : ""}</h2>
+      ${rows}
+    </section>`;
+  }).join("") || `<div class="empty">No games.</div>`;
+  if (scrollToCurrent) document.getElementById(`wk-${currentKey}`)?.scrollIntoView({ block: "start" });
+}
+
+function scheduleRow(e) {
+  const comp = e.competitions[0];
+  const state = e.status.type.state;
+  const teams = ["away", "home"].map((side) => comp.competitors.find((c) => c.homeAway === side));
+  const decided = state === "post" && teams.some((t) => t.winner);
+
+  const day = new Date(e.date).toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" });
+  const when = state === "pre"
+    ? (comp.timeValid === false ? "TBD" : new Date(e.date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))
+    : state === "in" ? `<b style="color:var(--live)">${esc(e.status.type.shortDetail)}</b>` : `<b>${esc(e.status.type.shortDetail)}</b>`;
+
+  const side = (t) => `<span class="side ${decided && !t.winner ? "loser" : ""}">${logo(t.team)}${esc(t.team.abbreviation)}${state === "pre" ? "" : ` ${esc(t.score)}`}</span>`;
+
+  let extra = state === "pre" ? esc(comp.broadcast ?? "") : "";
+  if (team && state === "post") {
+    const mine = teams.find((t) => t.team.id === team);
+    const other = teams.find((t) => t.team.id !== team);
+    const r = mine.winner ? "W" : decided ? "L" : "T";
+    extra = `<span class="res ${r}">${r} ${esc(mine.score)}–${esc(other.score)}</span>`;
+  }
+
+  return `<div class="row" data-key="${esc(keyOf(e.season.type, e.week.number))}" data-id="${esc(e.id)}">
+    <div class="when">${esc(day)}<br>${when}</div>
+    <div class="match">${side(teams[0])}<span class="at">${comp.neutralSite ? "vs" : "@"}</span>${side(teams[1])}</div>
+    <div class="extra">${extra}</div>
+  </div>`;
+}
+
+/* ---------- Events ---------- */
+
+function setView(v) {
+  view = v;
+  for (const b of $("views").children) b.setAttribute("aria-pressed", b.dataset.v === v);
+  $("picker").hidden = $("filters").hidden = v !== "scores";
+  $("team").hidden = v !== "schedule";
+  window.scrollTo(0, 0);
+  if (v === "schedule") loadSchedule(false);
+  else { events = []; $("games").innerHTML = ""; load(); }
+}
+
+function goToWeek(key) {
+  selectedKey = key;
+  syncPicker();
+  events = [];
+  $("games").innerHTML = `<div class="empty">Loading…</div>`;
+  window.scrollTo(0, 0);
+  load();
+}
+
+$("views").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button");
+  if (b && b.dataset.v !== view) setView(b.dataset.v);
+});
+
+$("week").addEventListener("change", () => goToWeek($("week").value));
+$("prev").addEventListener("click", () => goToWeek(weeks[weeks.findIndex((w) => w.key === selectedKey) - 1].key));
+$("next").addEventListener("click", () => goToWeek(weeks[weeks.findIndex((w) => w.key === selectedKey) + 1].key));
+
+$("team").addEventListener("change", () => { team = $("team").value; renderSchedule(false); window.scrollTo(0, 0); });
+
+$("games").addEventListener("click", (ev) => {
+  if (ev.target.closest("a")) return;
+
+  const pbpBtn = ev.target.closest("[data-pbp]");
+  if (pbpBtn) return openPbp(pbpBtn.dataset.pbp);
+
+  const row = ev.target.closest(".row[data-key]");
+  if (row) {
+    // Jump from the schedule to that game's card in the scores view.
+    openCards.add(row.dataset.id);
+    scrollToCard = row.dataset.id;
+    selectedKey = row.dataset.key;
+    filter = "all";
+    for (const x of $("filters").children) x.setAttribute("aria-pressed", x.dataset.f === "all");
+    setView("scores");
+    return;
+  }
+
+  const el = ev.target.closest(".card");
+  if (!el) return;
+  const id = el.dataset.id;
+  openCards.has(id) ? openCards.delete(id) : openCards.add(id);
+  el.classList.toggle("open");
+});
+
+$("filters").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  filter = b.dataset.f;
+  for (const x of $("filters").children) x.setAttribute("aria-pressed", x === b);
+  render();
+});
+
+$("refresh").addEventListener("click", load);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (view === "scores") load();
+  if (pbp.id) loadPbp();
+});
+
+/* ---------- Play-by-play ---------- */
+
+const SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary";
+const MINOR_PLAYS = new Set(["Timeout", "Official Timeout", "End Period", "End of Half", "End of Game", "Two-minute warning", "End of Regulation"]);
+let pbp = {};
+
+function openPbp(id) {
+  let mode = "cam";
+  try { mode = localStorage.getItem("puntz.view") === "top" ? "top" : "cam"; } catch {}
+  pbp = {
+    id, data: null, tab: "plays", openDrives: new Set(), seen: new Set(), knownDrives: new Set(), req: 0, timer: null,
+    views: { cam: new Broadcast(), top: new Field() }, mode, last: null,
+  };
+  for (const b of $("ptabs").querySelectorAll("[data-t]")) b.setAttribute("aria-pressed", b.dataset.t === "plays");
+  $("phead").innerHTML = `<div class="ptop"><span>Loading…</span><button class="close" data-close title="Close">×</button></div>`;
+  $("pbody").innerHTML = "";
+  $("overlay").hidden = false;
+  document.body.style.overflow = "hidden";
+  loadPbp();
+}
+
+function closePbp() {
+  clearTimeout(pbp.timer);
+  pbp = {};
+  $("overlay").hidden = true;
+  document.body.style.overflow = "";
+}
+
+async function loadPbp() {
+  clearTimeout(pbp.timer);
+  const { id } = pbp;
+  const req = ++pbp.req;
+  try {
+    const data = await getJSON(`${SUMMARY}?event=${encodeURIComponent(id)}`);
+    if (pbp.id !== id || pbp.req !== req) return;
+    pbp.data = data;
+    renderPbp();
+  } catch (err) {
+    if (pbp.id !== id) return;
+    if (!pbp.data) $("pbody").innerHTML = `<div class="error">Couldn't load play-by-play (${esc(err.message)}).</div>`;
+  }
+  if (pbp.id === id && pbp.data?.header?.competitions?.[0]?.status?.type?.state === "in") {
+    pbp.timer = setTimeout(loadPbp, LIVE_MS);
+  }
+}
+
+// Drives newest first. While live, the current drive also appears in `previous`, so dedupe by id.
+function pbpDrives(d) {
+  const prev = d.drives?.previous ?? [];
+  const cur = d.drives?.current;
+  const list = cur && !prev.some((x) => x.id === cur.id) ? [...prev, cur] : [...prev];
+  return list.reverse().map((dr) => ({ ...dr, isCurrent: !!cur && dr.id === cur.id }));
+}
+
+function renderPbp() {
+  const d = pbp.data;
+  const comp = d.header.competitions[0];
+  const state = comp.status.type.state;
+  const live = state === "in";
+  const teams = ["away", "home"].map((side) => comp.competitors.find((c) => c.homeAway === side));
+  const abbr = Object.fromEntries(teams.map((t) => [t.team.id, t.team.abbreviation]));
+  const drives = pbpDrives(d);
+
+  // Track which plays/drives are new since the last poll so they can be highlighted / auto-opened.
+  const firstRender = pbp.seen.size === 0;
+  const isNew = new Set();
+  for (const dr of drives) {
+    if (!pbp.knownDrives.has(dr.id)) {
+      if (firstRender ? dr === drives[0] : true) pbp.openDrives.add(dr.id);
+      pbp.knownDrives.add(dr.id);
+    }
+    for (const p of dr.plays ?? []) {
+      if (!pbp.seen.has(p.id)) { if (!firstRender) isNew.add(p.id); pbp.seen.add(p.id); }
+    }
+  }
+
+  // Header: score, status, situation, win probability
+  const logoOf = (t) => ({ logo: t.team.logos?.[0]?.href ?? t.team.logo });
+  const side = (t, cls) => `<div class="t ${cls}">${cls === "home" ? `<span>${esc(t.team.abbreviation)}</span>${logo(logoOf(t))}` : `${logo(logoOf(t))}<span>${esc(t.team.abbreviation)}</span>`}</div>`;
+  const lastPlay = drives[0]?.plays?.at(-1);
+  const situ = live && lastPlay?.end?.downDistanceText
+    ? `${esc(abbr[lastPlay.end.team?.id] ?? "")} ball · ${esc(lastPlay.end.downDistanceText)}` : "";
+  const wpLast = d.winprobability?.at(-1);
+  const homeWp = wpLast ? Math.round(wpLast.homeWinPercentage * 100) : null;
+  const wp = live && homeWp != null ? `<div class="wp">
+      <div class="lbl"><span>${esc(teams[0].team.abbreviation)} ${100 - homeWp}%</span><span>Win probability</span><span>${esc(teams[1].team.abbreviation)} ${homeWp}%</span></div>
+      <div class="bar2"><div style="width:${100 - homeWp}%"></div></div>
+    </div>` : "";
+
+  $("phead").innerHTML = `
+    <div class="ptop">
+      <span class="state ${live ? "live" : ""}">${live ? '<span class="dot"></span>' : ""}${esc(comp.status.type.detail)}</span>
+      <button class="close" data-close title="Close">×</button>
+    </div>
+    <div class="pscore">
+      ${side(teams[0], "away")}
+      <div class="mid"><span class="s">${esc(teams[0].score ?? 0)}</span><span class="dash">–</span><span class="s">${esc(teams[1].score ?? 0)}</span></div>
+      ${side(teams[1], "home")}
+    </div>
+    ${situ ? `<div class="situ">${situ}</div>` : ""}
+    ${live ? `<div class="seg fmode">
+      <button data-mode="cam" aria-pressed="${pbp.mode === "cam"}">Behind offense</button>
+      <button data-mode="top" aria-pressed="${pbp.mode === "top"}">Top-down</button>
+    </div><div id="pfield"></div>` : ""}
+    ${wp}`;
+
+  if (live) {
+    const f = pbp.views[pbp.mode];
+    $("pfield").append(f.root);
+    for (const v of Object.values(pbp.views)) v.setTeams(teams[1].team, teams[0].team);
+    // Replay the latest play on open; afterwards animate each new play in order as polls bring them in.
+    const chrono = [...drives].reverse().flatMap((dr) => dr.plays ?? []);
+    if (firstRender && chrono.length) f.place(stateFromPlayEnd(chrono.at(-1)));
+    const toAnimate = firstRender ? chrono.filter((p) => p.start?.yardLine != null).slice(-1) : chrono.filter((p) => isNew.has(p.id));
+    for (const p of toAnimate) {
+      pbp.last = [playFromSummary(p), stateFromPlayEnd(p)];
+      f.enqueue(...pbp.last);
+    }
+  }
+
+  $("expand").hidden = pbp.tab !== "plays";
+  if (pbp.tab === "scoring") return renderScoring(d, teams);
+
+  if (!drives.length) {
+    $("pbody").innerHTML = `<div class="empty">No plays yet.</div>`;
+    return;
+  }
+  $("expand").textContent = drives.every((dr) => pbp.openDrives.has(dr.id)) ? "Collapse all" : "Expand all";
+
+  $("pbody").innerHTML = drives.map((dr) => {
+    const plays = [...(dr.plays ?? [])].reverse();
+    const last = dr.plays?.at(-1);
+    const result = dr.isCurrent && live ? "Drive in progress" : (dr.displayResult ?? dr.result ?? "");
+    const score = dr.isScore && last ? `${esc(teams[0].team.abbreviation)} ${esc(last.awayScore)} – ${esc(last.homeScore)} ${esc(teams[1].team.abbreviation)}` : "";
+    const q = dr.start?.period?.number;
+    return `<section class="drive ${pbp.openDrives.has(dr.id) ? "open" : ""} ${dr.isCurrent && live ? "current" : ""}" data-drive="${esc(dr.id)}">
+      <div class="dhead">
+        ${logo({ logo: dr.team?.logos?.[0]?.href })}
+        <div>
+          <div class="dres ${dr.isScore ? "score" : ""}">${dr.isCurrent && live ? '<span class="dot"></span>' : ""}${esc(dr.team?.abbreviation)} · ${esc(result)}</div>
+          <div class="ddesc">${esc(dr.description)}${q ? ` · ${q > 4 ? "OT" : "Q" + q} ${esc(dr.start?.clock?.displayValue ?? "")}` : ""}</div>
+        </div>
+        <div class="dright">${score}</div>
+      </div>
+      <ul class="plays">${plays.map((p) => playRow(p, isNew.has(p.id))).join("")}</ul>
+    </section>`;
+  }).join("");
+}
+
+function playRow(p, isNew) {
+  const q = p.period?.number;
+  const type = p.type?.text ?? "";
+  const minor = MINOR_PLAYS.has(type);
+  const dd = !minor && p.start?.down > 0 ? p.start.downDistanceText : "";
+  const tags = [];
+  if (p.scoringPlay) tags.push(`<span class="tag td">${esc(type)}</span>`);
+  if (p.isTurnover) tags.push(`<span class="tag to">Turnover</span>`);
+  if (p.isPenalty || type === "Penalty") tags.push(`<span class="tag pen">Penalty</span>`);
+  const head = dd || tags.length ? `<div class="pdd">${esc(dd)}${tags.join("")}</div>` : "";
+  return `<li class="play ${minor ? "minor" : ""} ${p.scoringPlay ? "scoring" : ""} ${isNew ? "new" : ""}">
+    <div class="pclock">${q > 4 ? "OT" : "Q" + esc(q)}<br>${esc(p.clock?.displayValue ?? "")}</div>
+    <div>${head}<div>${esc(p.text)}</div></div>
+  </li>`;
+}
+
+function renderScoring(d, teams) {
+  const plays = d.scoringPlays ?? [];
+  if (!plays.length) { $("pbody").innerHTML = `<div class="empty">No scoring yet.</div>`; return; }
+  let html = "", lastQ = null, open = false;
+  for (const p of plays) {
+    const q = p.period?.number;
+    if (q !== lastQ) {
+      if (open) html += `</div>`;
+      html += `<div class="qhead">${q > 4 ? "Overtime" : ["1st", "2nd", "3rd", "4th"][q - 1] + " Quarter"}</div><div class="drive">`;
+      lastQ = q; open = true;
+    }
+    html += `<div class="sp">
+      ${logo(p.team)}
+      <div><div class="pdd">${esc(p.type?.text)} · ${esc(p.clock?.displayValue)}</div>${esc(p.text)}</div>
+      <div class="dright">${esc(teams[0].team.abbreviation)} ${esc(p.awayScore)} – ${esc(p.homeScore)} ${esc(teams[1].team.abbreviation)}</div>
+    </div>`;
+  }
+  $("pbody").innerHTML = html + (open ? "</div>" : "");
+}
+
+$("overlay").addEventListener("click", (ev) => {
+  if (ev.target === $("overlay") || ev.target.closest("[data-close]")) return closePbp();
+  const modeBtn = ev.target.closest("[data-mode]");
+  if (modeBtn && pbp.data && modeBtn.dataset.mode !== pbp.mode) {
+    pbp.mode = modeBtn.dataset.mode;
+    try { localStorage.setItem("puntz.view", pbp.mode); } catch {}
+    renderPbp();
+    // Replay the latest play on the view we just switched to.
+    const v = pbp.views[pbp.mode];
+    if (pbp.last && !v.busy) { v.place(pbp.last[1]); v.enqueue(...pbp.last); }
+    return;
+  }
+  const head = ev.target.closest(".dhead");
+  if (head) {
+    const el = head.parentElement, id = el.dataset.drive;
+    pbp.openDrives.has(id) ? pbp.openDrives.delete(id) : pbp.openDrives.add(id);
+    el.classList.toggle("open");
+  }
+});
+
+$("ptabs").addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-t]");
+  if (t) {
+    pbp.tab = t.dataset.t;
+    for (const b of $("ptabs").querySelectorAll("[data-t]")) b.setAttribute("aria-pressed", b === t);
+    $("pbody").scrollTop = 0;
+    if (pbp.data) renderPbp();
+  }
+  if (ev.target.closest("#expand") && pbp.data) {
+    const drives = pbpDrives(pbp.data);
+    const allOpen = drives.every((dr) => pbp.openDrives.has(dr.id));
+    pbp.openDrives = allOpen ? new Set() : new Set(drives.map((dr) => dr.id));
+    renderPbp();
+  }
+});
+
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && pbp.id) closePbp(); });
+
+load();
+</script>
+</body>
+</html>
